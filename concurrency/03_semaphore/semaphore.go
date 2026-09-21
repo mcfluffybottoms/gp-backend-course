@@ -5,11 +5,15 @@ type Semaphore struct {
 }
 
 func New(n int) *Semaphore {
-	panic("не реализовано")
+	if n < 0 {
+		panic("negative semaphore size")
+	}
 }
 
 func (s *Semaphore) Acquire() {
-	panic("не реализовано")
+	for {
+		old :=
+	}
 }
 
 func (s *Semaphore) TryAcquire() bool {
