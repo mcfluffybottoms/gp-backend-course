@@ -1,5 +1,7 @@
 package rwmutex
 
+import "sync/atomic"
+
 const writer = 1 << 31
 
 type RWMutex struct {
@@ -7,17 +9,36 @@ type RWMutex struct {
 }
 
 func (rw *RWMutex) RLock() {
-	panic("не реализовано")
+	for {
+		state := atomic.LoadUint32(&rw.state)
+		if state&writer == 0 && atomic.CompareAndSwapUint32(&rw.state, state, state+1) {
+			return
+		}
+	}
 }
 
 func (rw *RWMutex) RUnlock() {
-	panic("не реализовано")
+	for {
+		state := atomic.LoadUint32(&rw.state)
+		if state&writer != 0 || state == 0 {
+			panic("RUnlock of unlocked RWMutex")
+		}
+		if atomic.CompareAndSwapUint32(&rw.state, state, state-1) {
+			return
+		}
+	}
+
 }
 
 func (rw *RWMutex) Lock() {
-	panic("не реализовано")
+	for !atomic.CompareAndSwapUint32(&rw.state, 0, writer) {
+	}
 }
 
 func (rw *RWMutex) Unlock() {
-	panic("не реализовано")
+	if atomic.CompareAndSwapUint32(&rw.state, writer, 0) {
+		return
+	}
+
+	panic("Unlock of unlocked RWMutex")
 }
