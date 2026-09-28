@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"strings"
@@ -47,11 +48,12 @@ func EthernetLevel(bytes []byte) (ethernet, error) {
 }
 
 func (eth ethernet) Print() {
-	fmt.Printf("Dst:       %02x:%02x:%02x:%02x:%02x:%02x\n",
+	fmt.Println("Ethernet:")
+	fmt.Printf("  eth.dst       %02x:%02x:%02x:%02x:%02x:%02x\n",
 		eth.Dst[0], eth.Dst[1], eth.Dst[2], eth.Dst[3], eth.Dst[4], eth.Dst[5])
-	fmt.Printf("Src:       %02x:%02x:%02x:%02x:%02x:%02x\n",
+	fmt.Printf("  eth.src       %02x:%02x:%02x:%02x:%02x:%02x\n",
 		eth.Src[0], eth.Src[1], eth.Src[2], eth.Src[3], eth.Src[4], eth.Src[5])
-	fmt.Printf("EtherType: 0x%04x\n", eth.EtherType)
+	fmt.Printf("  eth.ethertype 0x%04x\n", eth.EtherType)
 }
 
 // IPv4 //
@@ -130,17 +132,18 @@ func u32ToIP(v uint32) net.IP {
 }
 
 func (ip IPv4) Print() {
-	fmt.Printf("  ip.version        = %d\n", ip.version)
-	fmt.Printf("  ip.ihl_bytes      = %d\n", ip.ihl_bytes)
-	fmt.Printf("  ip.total_length   = %d\n", ip.total_length)
-	fmt.Printf("  ip.id             = 0x%04x\n", ip.id)
-	fmt.Printf("  ip.flags          = %s\n", ip.flags)
-	fmt.Printf("  ip.frag_offset    = %d\n", ip.frag_offset)
-	fmt.Printf("  ip.ttl            = %d\n", ip.ttl)
-	fmt.Printf("  ip.protocol       = %d\n", ip.protocol)
-	fmt.Printf("  ip.src            = %s\n", u32ToIP(ip.src))
-	fmt.Printf("  ip.dst            = %s\n", u32ToIP(ip.dst))
-	fmt.Printf("  ip.checksum_valid = %t\n", ip.checksum_valid)
+	fmt.Println("IPv4:")
+	fmt.Printf("  ip.version        %d\n", ip.version)
+	fmt.Printf("  ip.ihl_bytes      %d\n", ip.ihl_bytes)
+	fmt.Printf("  ip.total_length   %d\n", ip.total_length)
+	fmt.Printf("  ip.id             0x%04x\n", ip.id)
+	fmt.Printf("  ip.flags          %s\n", ip.flags)
+	fmt.Printf("  ip.frag_offset    %d\n", ip.frag_offset)
+	fmt.Printf("  ip.ttl            %d\n", ip.ttl)
+	fmt.Printf("  ip.protocol       %d\n", ip.protocol)
+	fmt.Printf("  ip.src            %s\n", u32ToIP(ip.src))
+	fmt.Printf("  ip.dst            %s\n", u32ToIP(ip.dst))
+	fmt.Printf("  ip.checksum_valid %t\n", ip.checksum_valid)
 }
 
 // transport level protocols //
@@ -152,6 +155,9 @@ type udp struct {
 }
 
 func UDPLevel(ip IPv4, dump []byte) (udp, error) {
+	if ip.protocol != 17 {
+		return udp{}, errors.New("ip.protocol != 17")
+	}
 	if len(dump) < 14+int(ip.ihl_bytes) {
 		return udp{}, errors.New("not enough data for udp")
 	}
@@ -164,9 +170,10 @@ func UDPLevel(ip IPv4, dump []byte) (udp, error) {
 }
 
 func (udp udp) Print() {
-	fmt.Printf("  udp.src_port        = %d\n", udp.src_port)
-	fmt.Printf("  udp.dst_port      = %d\n", udp.dst_port)
-	fmt.Printf("  udp.length   = %d\n", udp.length)
+	fmt.Println("UDP:")
+	fmt.Printf("  udp.src_port      %d\n", udp.src_port)
+	fmt.Printf("  udp.dst_port      %d\n", udp.dst_port)
+	fmt.Printf("  udp.length        %d\n", udp.length)
 }
 
 type tcp struct {
@@ -180,6 +187,9 @@ type tcp struct {
 }
 
 func TCPLevel(ip IPv4, dump []byte) (tcp, error) {
+	if ip.protocol != 6 {
+		return tcp{}, errors.New("ip.protocol != 6")
+	}
 	if len(dump) < 14+int(ip.ihl_bytes) {
 		return tcp{}, errors.New("not enough data for tcp")
 	}
@@ -191,7 +201,6 @@ func TCPLevel(ip IPv4, dump []byte) (tcp, error) {
 	RST := bytes[13]&4 != 0
 	SYN := bytes[13]&2 != 0
 	FIN := bytes[13]&1 != 0
-
 	var parts []string
 	if FIN {
 		parts = append(parts, "FIN")
@@ -211,8 +220,8 @@ func TCPLevel(ip IPv4, dump []byte) (tcp, error) {
 	if URG {
 		parts = append(parts, "URG")
 	}
-
 	flags := strings.Join(parts, ",")
+
 	return tcp{
 		src_port:          binary.BigEndian.Uint16(bytes[:2]),
 		dst_port:          binary.BigEndian.Uint16(bytes[2:4]),
@@ -225,40 +234,45 @@ func TCPLevel(ip IPv4, dump []byte) (tcp, error) {
 }
 
 func (tcp tcp) Print() {
-	fmt.Printf("  tcp.src_port          = %d\n", tcp.src_port)
-	fmt.Printf("  tcp.dst_port          = %d\n", tcp.dst_port)
-	fmt.Printf("  tcp.seq               = %d\n", tcp.seq)
-	fmt.Printf("  tcp.ack               = %d\n", tcp.ack)
-	fmt.Printf("  tcp.data_offset_bytes = %d\n", tcp.data_offset_bytes)
-	fmt.Printf("  tcp.flags             = %s\n", tcp.flags)
-	fmt.Printf("  tcp.window            = %d\n", tcp.window)
+	fmt.Println("TCP:")
+	fmt.Printf("  tcp.src_port          %d\n", tcp.src_port)
+	fmt.Printf("  tcp.dst_port          %d\n", tcp.dst_port)
+	fmt.Printf("  tcp.seq               %d\n", tcp.seq)
+	fmt.Printf("  tcp.ack               %d\n", tcp.ack)
+	fmt.Printf("  tcp.data_offset_bytes %d\n", tcp.data_offset_bytes)
+	fmt.Printf("  tcp.flags             %s\n", tcp.flags)
+	fmt.Printf("  tcp.window            %d\n", tcp.window)
 }
 
 func (udp udp) PrintPayload(dump int, ip IPv4) {
-	fmt.Printf("  payload.length        = %d\n", dump-int(ip.ihl_bytes)-8)
+	fmt.Printf("  payload.length        %d\n", int(ip.total_length)-int(ip.ihl_bytes)-8)
 }
 func (tcp tcp) PrintPayload(dump int, ip IPv4) {
-	fmt.Printf("  payload.length        = %d\n", dump-int(ip.ihl_bytes)-int(tcp.data_offset_bytes))
+	fmt.Printf("  payload.length        %d\n", int(ip.total_length)-int(ip.ihl_bytes)-int(tcp.data_offset_bytes))
 }
 
 // MAIN //
 
 func main() {
 	bytes := make([]byte, 0)
-	for _, arg := range os.Args[1:] {
-		cleaned := strings.Map(func(r rune) rune {
-			if !skip(r) {
-				return r
-			}
-			return -1
-		}, arg)
-		raw, err := hex.DecodeString(cleaned)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "bad hex:", cleaned)
-			os.Exit(1)
-		}
-		bytes = append(bytes, raw...)
+	args, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "read stdin:", err)
+		os.Exit(1)
 	}
+
+	cleaned := strings.Map(func(r rune) rune {
+		if !skip(r) {
+			return r
+		}
+		return -1
+	}, string(args))
+	raw, err := hex.DecodeString(cleaned)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "bad hex:", cleaned)
+		os.Exit(1)
+	}
+	bytes = append(bytes, raw...)
 
 	// ethernet
 	ethernet, err := EthernetLevel(bytes)
