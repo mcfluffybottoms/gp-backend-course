@@ -21,7 +21,7 @@ func (m *Mutex) Lock() {
 	}
 
 	for {
-		if atomic.CompareAndSwapUint32(&m.state, free, held) {
+		if atomic.CompareAndSwapUint32(&m.state, free, contended) {
 			return
 		}
 
