@@ -1,8 +1,15 @@
 package once
 
 import (
-	"primitives/internal/futex"
 	"sync/atomic"
+
+	"primitives/internal/futex"
+)
+
+const (
+	notStarted = iota
+	running
+	done
 )
 
 type Once struct {
@@ -10,24 +17,24 @@ type Once struct {
 }
 
 func (o *Once) Do(f func()) {
-	if atomic.LoadUint32(&o.state) == 2 {
+	if atomic.LoadUint32(&o.state) == done {
 		return
 	}
 
-	if atomic.CompareAndSwapUint32(&o.state, 0, 1) {
+	if atomic.CompareAndSwapUint32(&o.state, notStarted, running) {
 		defer func() {
-			atomic.StoreUint32(&o.state, 2)
+			atomic.StoreUint32(&o.state, done)
 			futex.WakeAll(&o.state)
 		}()
 		f()
 		return
 	}
 
-	for atomic.LoadUint32(&o.state) != 2 {
+	for atomic.LoadUint32(&o.state) != done {
 		futex.Wait(&o.state, 1)
 	}
 }
 
 func (o *Once) Done() bool {
-	return atomic.LoadUint32(&o.state) == 2
+	return atomic.LoadUint32(&o.state) == done
 }
