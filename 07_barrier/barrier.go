@@ -1,8 +1,10 @@
 package barrier
 
 import (
-	"primitives/internal/futex"
+	"math"
 	"sync/atomic"
+
+	"primitives/internal/futex"
 )
 
 type Barrier struct {
@@ -14,6 +16,9 @@ type Barrier struct {
 func New(n int) *Barrier {
 	if n <= 0 {
 		panic("invalid barrier size")
+	}
+	if n > math.MaxUint32 {
+		panic("barrier size too big")
 	}
 	return &Barrier{
 		need: uint32(n),

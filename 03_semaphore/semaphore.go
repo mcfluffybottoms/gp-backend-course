@@ -1,8 +1,10 @@
 package semaphore
 
 import (
-	"primitives/internal/futex"
+	"math"
 	"sync/atomic"
+
+	"primitives/internal/futex"
 )
 
 type Semaphore struct {
@@ -12,6 +14,10 @@ type Semaphore struct {
 func New(n int) *Semaphore {
 	if n < 0 {
 		panic("negative semaphore size")
+	}
+
+	if n > math.MaxUint32 {
+		panic("semaphore size too big")
 	}
 
 	return &Semaphore{
@@ -33,11 +39,15 @@ func (s *Semaphore) Acquire() {
 }
 
 func (s *Semaphore) TryAcquire() bool {
-	old := atomic.LoadUint32(&s.permits)
-	if old == 0 {
-		return false
+	for {
+		old := atomic.LoadUint32(&s.permits)
+		if old == 0 {
+			return false
+		}
+		if atomic.CompareAndSwapUint32(&s.permits, old, old-1) {
+			return true
+		}
 	}
-	return atomic.CompareAndSwapUint32(&s.permits, old, old-1)
 }
 
 func (s *Semaphore) Release() {
