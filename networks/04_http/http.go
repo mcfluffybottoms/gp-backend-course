@@ -79,9 +79,9 @@ func (r *Http) applyFirstLine(requestLine string) *HttpParseError {
 		}
 
 		r.typ = "response"
-		r.version = parts[0]
+		r.version = strings.TrimSpace(parts[0])
 		r.status = status
-		r.reason = parts[2]
+		r.reason = strings.TrimSpace(parts[2])
 
 		return nil
 	}
@@ -94,9 +94,9 @@ func (r *Http) applyFirstLine(requestLine string) *HttpParseError {
 	}
 
 	r.typ = "request"
-	r.method = parts[0]
-	r.target = parts[1]
-	r.version = parts[2]
+	r.method = strings.TrimSpace(parts[0])
+	r.target = strings.TrimSpace(parts[1])
+	r.version = strings.TrimSpace(parts[2])
 
 	return nil
 }
@@ -114,9 +114,9 @@ func (r *Http) applyLine(line string) *HttpParseError {
 	name := strings.ToLower(parts[0])
 	value := strings.TrimSpace(parts[1])
 
-	if name == "" {
+	if name == "" || strings.TrimSpace(name) != name {
 		return &HttpParseError{
-			line: fmt.Sprintf("name is empty: %s", line),
+			line: fmt.Sprintf("invalid header name: '%s'", line),
 			typ:  bad_header,
 		}
 	}
@@ -214,14 +214,12 @@ func (request *Http) readChunkedBody(r *bufio.Reader) *HttpParseError {
 		if !strings.HasSuffix(line, "\r\n") {
 			return &HttpParseError{
 				line: fmt.Sprintf("line without carriage return is rejected: %s", line),
-				typ:  bad_header,
+				typ:  bad_chunk,
 			}
 		}
-
 		line = strings.TrimSuffix(line, "\r\n")
 
 		sizeText, _, _ := strings.Cut(line, ";")
-
 		size, err := strconv.ParseUint(sizeText, 16, 64)
 		if err != nil {
 			return &HttpParseError{
@@ -240,15 +238,14 @@ func (request *Http) readChunkedBody(r *bufio.Reader) *HttpParseError {
 					}
 				}
 
-				// if !strings.HasSuffix(line, "\r\n") {
-				// 	return &HttpParseError{
-				// 		line: fmt.Sprintf("error while parsing chunk size: %s", err.Error()),
-				// 		typ:  bad_chunk,
-				// 	}
-				// }
+				if !strings.HasSuffix(line, "\r\n") {
+					return &HttpParseError{
+						line: fmt.Sprintf("error while parsing chunk size: %s", err.Error()),
+						typ:  bad_chunk,
+					}
+				}
 
 				line = strings.TrimSuffix(line, "\r\n")
-
 				if line == "" {
 					return nil
 				}
@@ -272,14 +269,13 @@ func (request *Http) readChunkedBody(r *bufio.Reader) *HttpParseError {
 				typ:  bad_chunk,
 			}
 		}
-
-		// if line != "\r\n" {
-		// 	return &HttpParseError{
-		// 		line: fmt.Sprintf("error while reading chunk content: %s", err.Error()),
-		// 		typ:  bad_chunk,
-		// 	}
-		// }
-
+		if line != "\r\n" {
+			return &HttpParseError{
+				line: fmt.Sprintf("chunk is not followed by CRLF: %s", line),
+				typ:  bad_chunk,
+			}
+		}
+	
 		request.content = append(request.content, chunk...)
 	}
 }
