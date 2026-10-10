@@ -26,14 +26,17 @@ var interval = Interval{
 	upperBound:   1000,
 }
 
-func (i Interval) duration(n int) int {
-	result := 200
-	for i := 1; i < n; i++ {
-		result *= 2
-		if result >= 2000 {
-			return 2000
+func (i *Interval) duration(n int) int {
+	result := i.baseInterval
+
+	for attempt := 1; attempt < n; attempt++ {
+		if result >= i.upperBound/i.multiplier {
+			result = i.upperBound
+			break
 		}
+		result *= i.multiplier
 	}
+
 	return rand.IntN(result + 1)
 }
 
@@ -53,6 +56,7 @@ func (req *HttpRequest) ifNeedToRerun(prevAttempt Attempt) bool {
 	status := prevAttempt.StatusCode
 	return prevAttempt.Attempt < prevAttempt.Request.MaxAttempts &&
 		(errors.As(prevAttempt.err, &netErr) ||
+			errors.Is(prevAttempt.err, io.ErrUnexpectedEOF) ||
 			status == 429 ||
 			status == 500 ||
 			status == 502 ||
@@ -94,20 +98,19 @@ func (req HttpRequest) send(interval Interval, attempt int) Attempt {
 		Timeout: 5 * time.Second,
 	}
 
+	var urlErr *url.Error
+	var netErr net.Error
 	resp, err := client.Do(request)
 	if err != nil {
-		if urlErr, ok := errors.AsType[*url.Error](err); ok {
-			if _, ok := errors.AsType[net.Error](urlErr.Err); ok {
-				sleepMs := interval.duration(attempt)
-				return Attempt{
-					Request: req,
-					Attempt: attempt + 1,
-					SleepMs: time.Millisecond * time.Duration(sleepMs),
-					err:     err,
-				}
+		if errors.As(err, &urlErr) && errors.As(urlErr.Err, &netErr) {
+			sleepMs := interval.duration(attempt)
+			return Attempt{
+				Request: req,
+				Attempt: attempt + 1,
+				SleepMs: time.Millisecond * time.Duration(sleepMs),
+				err:     err,
 			}
 		}
-
 		return Attempt{
 			Request: req,
 			Attempt: attempt + 1,
@@ -115,15 +118,25 @@ func (req HttpRequest) send(interval Interval, attempt int) Attempt {
 		}
 	}
 	_, copyErr := io.Copy(io.Discard, resp.Body)
-	closeErr := resp.Body.Close()
 	if copyErr != nil {
+		if errors.Is(copyErr, io.ErrUnexpectedEOF) {
+			sleepMs := interval.duration(attempt)
+			return Attempt{
+				Request: req,
+				Attempt: attempt + 1,
+				SleepMs: time.Millisecond * time.Duration(sleepMs),
+				err:     copyErr,
+			}
+		}
+
 		return Attempt{
-			Request:    req,
-			StatusCode: resp.StatusCode,
-			Attempt:    attempt + 1,
-			err:        copyErr,
+			Request: req,
+			Attempt: attempt + 1,
+			err:     copyErr,
 		}
 	}
+
+	closeErr := resp.Body.Close()
 	if closeErr != nil {
 		return Attempt{
 			Request:    req,
@@ -136,7 +149,7 @@ func (req HttpRequest) send(interval Interval, attempt int) Attempt {
 	var sleepMs int
 	if value := resp.Header.Get("Retry-After"); value != "" {
 		seconds, err := strconv.Atoi(value)
-		if err != nil {
+		if err != nil || seconds < 0 {
 			sleepMs = interval.duration(attempt)
 		} else {
 			sleepMs = seconds * 1000
@@ -158,12 +171,11 @@ func (req HttpRequest) SendWithRetry(interval Interval) Attempt {
 	for i := range req.MaxAttempts {
 		attempt = req.send(interval, i)
 		attempt.Print()
-		if attempt.Request.ifNeedToRerun(attempt) && attempt.Attempt < attempt.Request.MaxAttempts {
-			fmt.Printf("sleep_ms %d\n", attempt.SleepMs.Milliseconds())
-		}
 		if !req.ifNeedToRerun(attempt) {
 			return attempt
 		}
+
+		fmt.Printf("sleep_ms %d\n", attempt.SleepMs.Milliseconds())
 		time.Sleep(attempt.SleepMs)
 	}
 	return attempt
@@ -180,6 +192,27 @@ func main() {
 	method := "GET"
 	idempotencyKey := ""
 	maxAttempts := 5
+
+	if strings.HasPrefix(args[0], "-") {
+		fmt.Fprintf(os.Stderr, "No url present\n")
+		os.Exit(1)
+	}
+
+	u, err := url.Parse(args[0])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "invalid http URL: %w\n", err)
+		os.Exit(1)
+	}
+
+	if u.Scheme != "http" {
+		fmt.Fprintf(os.Stderr, "only http URLs are supported\n")
+		os.Exit(1)
+	}
+
+	if u.Host == "" {
+		fmt.Fprintf(os.Stderr, "URL must include a host\n")
+		os.Exit(1)
+	}
 
 	for i := 1; i < len(args); i++ {
 		switch args[i] {
