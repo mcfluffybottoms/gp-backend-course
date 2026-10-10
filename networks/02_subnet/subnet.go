@@ -33,9 +33,14 @@ func parseIPv4(arg string) (IPv4, error) {
 
 	var ip uint32
 	for _, s := range octetStrings {
+		for _, c := range s {
+			if c < '0' || c > '9' {
+				return 0, fmt.Errorf("Bad IPv4 for %s", s)
+			}
+		}
 		n, err := strconv.Atoi(s)
 		if err != nil || n < 0 || n > 255 {
-			return 0, fmt.Errorf("Bad CIDR: %s\n", arg)
+			return 0, fmt.Errorf("Bad IPv4 for: %s\n", arg)
 		}
 		ip = (ip << 8) | uint32(n)
 	}
@@ -73,13 +78,13 @@ type SubnetInfo struct {
 }
 
 func (a SubnetInfo) Print() {
-	fmt.Printf("network   %s\n", a.network)
+	fmt.Printf("network %s\n", a.network)
 	fmt.Printf("broadcast %s\n", a.broadcast)
-	fmt.Printf("netmask   %s\n", a.netmask)
-	fmt.Printf("prefix    %d\n", a.prefix)
-	fmt.Printf("first     %s\n", a.first)
-	fmt.Printf("last      %s\n", a.last)
-	fmt.Printf("hosts     %d\n", a.hosts)
+	fmt.Printf("netmask %s\n", a.netmask)
+	fmt.Printf("prefix %d\n", a.prefix)
+	fmt.Printf("first %s\n", a.first)
+	fmt.Printf("last %s\n", a.last)
+	fmt.Printf("hosts %d\n", a.hosts)
 }
 
 func getMask(prefix byte) (mask IPv4) {
@@ -167,10 +172,10 @@ func GetBestRoute(ip IPv4, routes []route) (route, bool) {
 // MAIN
 func ExtractIPs(file string) ([]route, error) {
 	f, err := os.Open(file)
-	defer f.Close()
 	if err != nil {
 		return nil, err
 	}
+	defer f.Close()
 
 	scanner := bufio.NewScanner(f)
 	routes := make([]route, 0)

@@ -197,7 +197,10 @@ func TCPLevel(ip IPv4, dump []byte) (tcp, error) {
 
 	bytes := dump[tcpStart:]
 
-	dataOffsetBytes := (bytes[12] & 0xf0) / 4
+	dataOffsetBytes := (bytes[12] & 0xF0) / 4
+	if dataOffsetBytes < 20 {
+		return tcp{}, fmt.Errorf("not enough data for full tcp header: %d", dataOffsetBytes)
+	}
 	if len(bytes) < int(dataOffsetBytes) {
 		return tcp{}, errors.New("not enough data for full tcp header")
 	}
@@ -211,6 +214,9 @@ func TCPLevel(ip IPv4, dump []byte) (tcp, error) {
 		}
 	}
 	flags := strings.Join(parts, ",")
+	if len(parts) == 0 {
+		flags = "none"
+	}
 
 	return tcp{
 		srcPort:         binary.BigEndian.Uint16(bytes[:2]),
@@ -234,14 +240,14 @@ func (tcp tcp) Print() {
 	fmt.Printf("  tcp.window            %d\n", tcp.window)
 }
 
-func PrintPayload(ip IPv4, transportHeaderLen int) {
-	headerLen := int(ip.ihlBytes) + 8
-	payloadLen := int(ip.totalLength) - headerLen
+func PrintPayload(ip IPv4, transportHeaderLen int) error {
+	payloadLen := int(ip.totalLength) - int(ip.ihlBytes) - transportHeaderLen
 	if payloadLen < 0 {
-		fmt.Println("  payload.length        -12")
-		return
+		fmt.Println("  payload.length        invalid")
+		return fmt.Errorf("payload.length LESS THAN 0")
 	}
-	fmt.Printf("  payload.length        %d\n", int(ip.totalLength)-int(ip.ihlBytes)-transportHeaderLen)
+	fmt.Printf("  payload.length        %d\n", payloadLen)
+	return nil
 }
 
 // MAIN //
@@ -261,7 +267,7 @@ func main() {
 	}, string(args))
 	bytes, err := hex.DecodeString(cleaned)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "bad hex:", cleaned)
+		fmt.Fprintln(os.Stderr, "bad hex: ", err.Error())
 		os.Exit(1)
 	}
 
@@ -286,24 +292,33 @@ func main() {
 	ip4.Print()
 
 	// transport level protocols
-	switch ip4.protocol {
-	case 6:
-		t, err := TCPLevel(ip4, bytes)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "protocol:", err.Error())
-			os.Exit(1)
+	transportHeaderLen := 0
+	if ip4.fragOffset == 0 {
+		switch ip4.protocol {
+		case 6:
+			t, err := TCPLevel(ip4, bytes)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "protocol:", err.Error())
+				os.Exit(1)
+			}
+			t.Print()
+			transportHeaderLen = int(t.dataOffsetBytes)
+		case 17:
+			u, err := UDPLevel(ip4, bytes)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "protocol:", err.Error())
+				os.Exit(1)
+			}
+			u.Print()
+			transportHeaderLen = 8
+		default:
+			transportHeaderLen = 0
 		}
-		t.Print()
-		PrintPayload(ip4, int(t.dataOffsetBytes))
-	case 17:
-		u, err := UDPLevel(ip4, bytes)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "protocol:", err.Error())
-			os.Exit(1)
-		}
-		u.Print()
-		PrintPayload(ip4, 8)
-	default:
-		PrintPayload(ip4, 0)
+	}
+
+	err = PrintPayload(ip4, transportHeaderLen)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
 	}
 }
