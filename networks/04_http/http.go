@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -10,6 +11,11 @@ import (
 )
 
 type ParseErrorType int
+
+const (
+    maxChunkBytes = 16 << 20
+    maxBodyBytes  = 64 << 20
+)
 
 const (
 	bad_start_line ParseErrorType = iota
@@ -150,8 +156,23 @@ func (r *Http) applyLine(line string) *HttpParseError {
 	})
 
 	if name == "content-length" {
+		if value == "" {
+			return &HttpParseError{
+				line: fmt.Sprintf("content-length of wrong format: %s", line),
+				typ:  bad_header,
+			}
+		}
+		for _, ch := range value {
+			if ch < '0' || ch > '9' {
+				return &HttpParseError{
+					line: fmt.Sprintf("content-length of wrong format: %s", line),
+					typ:  bad_header,
+				}
+			}
+		}
+
 		n, err := strconv.Atoi(value)
-		if err != nil || n < 0 {
+		if err != nil {
 			return &HttpParseError{
 				line: fmt.Sprintf("content-length of wrong format: %s,\n error text: %s", line, err.Error()),
 				typ:  bad_header,
@@ -194,7 +215,10 @@ func (request *Http) ReadHeaderFromStream(r *bufio.Reader) *HttpParseError {
 	for {
 		line, err := r.ReadString('\n')
 		if err == io.EOF {
-			break
+			return &HttpParseError{
+				line: fmt.Sprintf("EOF instead of CRLF."),
+				typ:  bad_header,
+			}
 		}
 		if err != nil {
 			return &HttpParseError{
@@ -210,7 +234,8 @@ func (request *Http) ReadHeaderFromStream(r *bufio.Reader) *HttpParseError {
 			}
 		}
 
-		line = strings.TrimSpace(line)
+		line = strings.TrimSuffix(line, "\n")
+		line = strings.TrimSuffix(line, "\r")
 
 		if line == "" {
 			break
@@ -275,9 +300,22 @@ func (request *Http) readChunkedBody(r *bufio.Reader) *HttpParseError {
 			}
 		}
 
-		chunk := make([]byte, int(size))
-
-		_, err = io.ReadFull(r, chunk)
+		if size > maxChunkBytes {
+            return &HttpParseError{
+                line: "chunk exceeds maximum allowed size",
+                typ:  bad_chunk,
+            }
+        }
+		if len(request.content) > maxBodyBytes ||
+            size > uint64(maxBodyBytes-len(request.content)) {
+            return &HttpParseError{
+                line: "body exceeds maximum allowed size",
+                typ:  bad_chunk,
+            }
+        }
+		
+		var chunk bytes.Buffer
+        _, err = io.CopyN(&chunk, r, int64(size))
 		if err != nil {
 			return &HttpParseError{
 				line: fmt.Sprintf("error while reading chunk: %s", err.Error()),
@@ -299,7 +337,7 @@ func (request *Http) readChunkedBody(r *bufio.Reader) *HttpParseError {
 			}
 		}
 
-		request.content = append(request.content, chunk...)
+		request.content = append(request.content, chunk.Bytes()...)
 	}
 }
 
