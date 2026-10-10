@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -11,63 +10,52 @@ import (
 
 // IPv4
 
-type IPv4 struct {
-	data [4]byte
-}
+type IPv4 uint32
 
 func (addr IPv4) prevAddress() IPv4 {
-	prev := addr
-	prev.data[3]--
-	for i := 2; i >= 0 && prev.data[i+1] == 0; i-- {
-		prev.data[i]--
-	}
-	return prev
+	return addr - 1
 }
 
 func (addr IPv4) nextAddress() IPv4 {
-	next := addr
-	next.data[3]++
-	for i := 2; i >= 0 && next.data[i+1] == 0; i-- {
-		next.data[i]++
-	}
-	return next
+	return addr + 1
 }
 
-func (addr IPv4) ToString() string {
-	return fmt.Sprintf("%d.%d.%d.%d", addr.data[0], addr.data[1], addr.data[2], addr.data[3])
+func (addr IPv4) String() string {
+	ip := uint32(addr)
+	return fmt.Sprintf("%d.%d.%d.%d", ip>>24, byte(ip>>16), byte(ip>>8), byte(ip))
 }
 
 func parseIPv4(arg string) (IPv4, error) {
 	octetStrings := strings.Split(arg, ".")
 	if len(octetStrings) != 4 {
-		return IPv4{}, fmt.Errorf("bad IPv4 for %s\n", arg)
+		return 0, fmt.Errorf("Bad IPv4 for %s\n", arg)
 	}
 
-	var ip [4]byte
-	for i, s := range octetStrings {
+	var ip uint32
+	for _, s := range octetStrings {
 		n, err := strconv.Atoi(s)
 		if err != nil || n < 0 || n > 255 {
-			return IPv4{}, fmt.Errorf("Incorrect ip format for %s\n", arg)
+			return 0, fmt.Errorf("Bad CIDR: %s\n", arg)
 		}
-		ip[i] = byte(n)
+		ip = (ip << 8) | uint32(n)
 	}
-	return IPv4{data: ip}, nil
+	return IPv4(ip), nil
 }
 
 func parseCIDR(arg string) (IPv4, byte, error) {
 	parts := strings.SplitN(arg, "/", 2)
 	if len(parts) != 2 {
-		return IPv4{}, 0, fmt.Errorf("Incorrect ip format for %s\n", arg)
+		return 0, 0, fmt.Errorf("Bad IPv4 for %s\n", arg)
 	}
 
 	ip, err := parseIPv4(parts[0])
 	if err != nil {
-		return IPv4{}, 0, err
+		return 0, 0, err
 	}
 
 	prefix, err := strconv.Atoi(parts[1])
 	if err != nil || prefix < 0 || prefix > 32 {
-		return IPv4{}, 0, errors.New("bad prefix")
+		return 0, 0, fmt.Errorf("Bad prefix %q", parts[1])
 	}
 	return ip, byte(prefix), nil
 }
@@ -95,32 +83,18 @@ func (a SubnetInfo) Print() {
 }
 
 func getMask(prefix byte) (mask IPv4) {
-	for i := range 4 {
-		bitsHere := int(prefix) - i*8
-		switch {
-		case bitsHere >= 8:
-			mask.data[i] = 0xFF
-		case bitsHere <= 0:
-			mask.data[i] = 0x00
-		default:
-			mask.data[i] = byte(0xff << (8 - bitsHere))
-		}
+	if prefix == 0 {
+		return 0
 	}
-	return mask
+	return IPv4(^uint32(0) << (32 - prefix))
 }
 
 func GetNetwork(a IPv4, mask IPv4) (network IPv4) {
-	for i := range 4 {
-		network.data[i] = a.data[i] & mask.data[i]
-	}
-	return network
+	return a & mask
 }
 
 func GetBroadcast(a IPv4, mask IPv4) (broadcast IPv4) {
-	for i := range 4 {
-		broadcast.data[i] = (a.data[i] & mask.data[i]) | ^mask.data[i]
-	}
-	return broadcast
+	return a | ^mask
 }
 
 func AddressProps(arg string) (SubnetInfo, error) {
@@ -138,26 +112,26 @@ func AddressProps(arg string) (SubnetInfo, error) {
 	switch prefix {
 	case 32:
 		bct = "none"
-		fst = network.ToString()
+		fst = network.String()
 		lst = fst
 		hosts = 1
 	case 31:
 		bct = "none"
-		fst = network.ToString()
-		lst = network.nextAddress().ToString()
+		fst = network.String()
+		lst = network.nextAddress().String()
 		hosts = 2
 	default:
 		broadcast := GetBroadcast(a, mask)
 		hosts = uint64(1)<<uint(32-prefix) - 2
-		bct = broadcast.ToString()
-		fst = network.nextAddress().ToString()
-		lst = broadcast.prevAddress().ToString()
+		bct = broadcast.String()
+		fst = network.nextAddress().String()
+		lst = broadcast.prevAddress().String()
 	}
 
 	return SubnetInfo{
-		network:   network.ToString(),
+		network:   network.String(),
 		broadcast: bct,
-		netmask:   mask.ToString(),
+		netmask:   mask.String(),
 		prefix:    prefix,
 		first:     fst,
 		last:      lst,
@@ -173,33 +147,29 @@ type route struct {
 }
 
 func matches(r route, dst IPv4) bool {
-	m := getMask(r.prefix).data
-	for i := range 4 {
-		if r.ip.data[i]&m[i] != dst.data[i]&m[i] {
-			return false
-		}
-	}
-	return true
+	m := getMask(r.prefix)
+	return (r.ip & m) == (dst & m)
 }
 
 func GetBestRoute(ip IPv4, routes []route) (route, bool) {
 	found := false
-	route := route{}
+	best := route{}
 	for _, r := range routes {
-		if (!found || r.prefix > route.prefix) && matches(r, ip) {
+		if (!found || r.prefix > best.prefix) && matches(r, ip) {
 			found = true
-			route = r
+			best = r
 		}
 	}
 
-	return route, found
+	return best, found
 }
 
 // MAIN
 func ExtractIPs(file string) ([]route, error) {
 	f, err := os.Open(file)
+	defer f.Close()
 	if err != nil {
-		return make([]route, 0), err
+		return nil, err
 	}
 
 	scanner := bufio.NewScanner(f)
@@ -211,11 +181,11 @@ func ExtractIPs(file string) ([]route, error) {
 		}
 		routeStr := strings.Fields(line)
 		if len(routeStr) != 2 {
-			return make([]route, 0), fmt.Errorf("bad route line: %q", line)
+			return nil, fmt.Errorf("bad route line: %q", line)
 		}
 		ip, prefix, err := parseCIDR(routeStr[0])
 		if err != nil {
-			return make([]route, 0), fmt.Errorf("incorrect ip: %q", line)
+			return nil, fmt.Errorf("bad route line %q: %w", line, err)
 		}
 		routes = append(routes, route{
 			ip:     ip,
@@ -240,6 +210,10 @@ func main() {
 
 	switch args[0] {
 	case "subnet":
+		if len(args) < 2 {
+			fmt.Fprintln(os.Stderr, "Not enough args for subnet")
+			os.Exit(1)
+		}
 		a, err := AddressProps(args[1])
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err.Error())
@@ -247,7 +221,7 @@ func main() {
 		}
 		a.Print()
 	case "route":
-		if len(args) < 2 {
+		if len(args) < 3 {
 			fmt.Fprintln(os.Stderr, "Not enough args")
 			os.Exit(1)
 		}
@@ -267,7 +241,6 @@ func main() {
 		if found {
 			fmt.Printf("via %s\n", route.eth)
 			fmt.Printf("prefix %d\n", route.prefix)
-			os.Exit(0)
 		} else {
 			fmt.Println("unreachable true")
 			os.Exit(1)
