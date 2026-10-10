@@ -47,16 +47,23 @@ type HttpRequest struct {
 	IdempotencyKey string
 }
 
+func ifNeedToRerunForError(err error) bool {
+	var urlErr *url.Error
+	var netErr net.Error
+
+	isNetworkError := errors.As(err, &urlErr) &&
+		errors.As(urlErr.Err, &netErr)
+
+	return isNetworkError || errors.Is(err, io.ErrUnexpectedEOF)
+}
+
 func (req *HttpRequest) ifNeedToRerun(prevAttempt Attempt) bool {
 	if strings.EqualFold(req.Method, "POST") && req.IdempotencyKey == "" {
 		return false
 	}
-
-	var netErr net.Error
 	status := prevAttempt.StatusCode
 	return prevAttempt.Attempt < prevAttempt.Request.MaxAttempts &&
-		(errors.As(prevAttempt.err, &netErr) ||
-			errors.Is(prevAttempt.err, io.ErrUnexpectedEOF) ||
+		(ifNeedToRerunForError(prevAttempt.err) ||
 			status == 429 ||
 			status == 500 ||
 			status == 502 ||
@@ -98,11 +105,9 @@ func (req HttpRequest) send(interval Interval, attempt int) Attempt {
 		Timeout: 5 * time.Second,
 	}
 
-	var urlErr *url.Error
-	var netErr net.Error
 	resp, err := client.Do(request)
 	if err != nil {
-		if errors.As(err, &urlErr) && errors.As(urlErr.Err, &netErr) {
+		if ifNeedToRerunForError(err) {
 			sleepMs := interval.duration(attempt)
 			return Attempt{
 				Request: req,
