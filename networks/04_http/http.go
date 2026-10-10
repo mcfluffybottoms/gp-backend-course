@@ -101,6 +101,29 @@ func (r *Http) applyFirstLine(requestLine string) *HttpParseError {
 	return nil
 }
 
+func isToken(s string) bool {
+	if s == "" {
+		return false
+	}
+
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') {
+			continue
+		}
+
+		switch c {
+		case '!', '#', '$', '%', '&', '\'', '*', '+', '-', '.', '^', '_', '`', '|', '~':
+			continue
+		default:
+			return false
+		}
+	}
+
+	return true
+}
+
 func (r *Http) applyLine(line string) *HttpParseError {
 	parts := strings.SplitN(line, ":", 2)
 
@@ -114,7 +137,7 @@ func (r *Http) applyLine(line string) *HttpParseError {
 	name := strings.ToLower(parts[0])
 	value := strings.TrimSpace(parts[1])
 
-	if name == "" || strings.TrimSpace(name) != name {
+	if !isToken(name) {
 		return &HttpParseError{
 			line: fmt.Sprintf("invalid header name: '%s'", line),
 			typ:  bad_header,
@@ -275,7 +298,7 @@ func (request *Http) readChunkedBody(r *bufio.Reader) *HttpParseError {
 				typ:  bad_chunk,
 			}
 		}
-	
+
 		request.content = append(request.content, chunk...)
 	}
 }

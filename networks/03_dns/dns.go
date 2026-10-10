@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math/rand/v2"
 	"net"
@@ -16,16 +17,16 @@ type DNSHeader struct {
 	id     uint16
 	qr     bool
 	opcode byte
-	AA     bool
-	TC     bool
-	RD     bool
-	RA     bool
+	aa     bool
+	tc     bool
+	rd     bool
+	ra     bool
 	// Z = 0
-	RCODE   byte
-	QCount  uint16
-	ANCount uint16
-	NSCOUNT uint16
-	ARCOUNT uint16
+	rCODE   byte
+	qCount  uint16
+	anCount uint16
+	nsCOUNT uint16
+	arCOUNT uint16
 }
 
 func NewDNSHeader(id uint16, qCount uint16) DNSHeader {
@@ -33,8 +34,8 @@ func NewDNSHeader(id uint16, qCount uint16) DNSHeader {
 		id:     id,
 		qr:     false,
 		opcode: 0,
-		RD:     true,
-		QCount: qCount,
+		rd:     true,
+		qCount: qCount,
 	}
 }
 
@@ -111,35 +112,31 @@ func NewDNSQuestion(url string, typ string) DNSQuestion {
 	}
 }
 
-func typeToUint16(t string) uint16 {
+func typeToUint16(t string) (uint16, error) {
 	switch strings.ToUpper(t) {
 	case "A":
-		return 1
+		return 1, nil
 	case "NS":
-		return 2
+		return 2, nil
 	case "CNAME":
-		return 5
-	case "SOA":
-		return 6
-	case "PTR":
-		return 12
+		return 5, nil
 	case "MX":
-		return 15
+		return 15, nil
 	case "TXT":
-		return 16
+		return 16, nil
 	case "AAAA":
-		return 28
+		return 28, nil
 	default:
-		return 1
+		return 1, errors.New("Type not supported")
 	}
 }
 
-func classToUint16(c string) uint16 {
+func classToUint16(c string) (uint16, error) {
 	switch strings.ToUpper(c) {
 	case "", "IN":
-		return 1
+		return 1, nil
 	default:
-		return 1
+		return 1, errors.New("Class not supported")
 	}
 }
 
@@ -375,8 +372,6 @@ func statusString(rcode byte) string {
 		return "SERVFAIL"
 	case 3:
 		return "NXDOMAIN"
-	case 4:
-		return "NOTIMP"
 	case 5:
 		return "REFUSED"
 	default:

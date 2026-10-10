@@ -198,10 +198,6 @@ func TCPLevel(ip IPv4, dump []byte) (tcp, error) {
 	bytes := dump[tcpStart:]
 
 	dataOffsetBytes := (bytes[12] & 0xf0) / 4
-	if dataOffsetBytes < 20 {
-		return tcp{}, errors.New("invalid tcp data offset")
-	}
-
 	if len(bytes) < int(dataOffsetBytes) {
 		return tcp{}, errors.New("not enough data for full tcp header")
 	}
