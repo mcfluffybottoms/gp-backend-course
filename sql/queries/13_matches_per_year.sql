@@ -4,4 +4,19 @@
 -- Колонки: year, matches, tournament_matches
 -- Порядок: year по возрастанию
 -- Строк:   10
-
+SELECT
+    EXTRACT(
+        YEAR
+        FROM
+            m.started_at
+    ) AS year,
+    COUNT(*) AS matches,
+    COUNT(m.tournament_id) tournament_matches
+FROM
+    matches AS m
+GROUP BY
+    year
+ORDER BY
+    year ASC
+LIMIT
+    10;

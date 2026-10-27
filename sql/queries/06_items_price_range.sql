@@ -4,4 +4,17 @@
 -- Колонки: name, cost
 -- Порядок: cost по убыванию, при равенстве name по возрастанию
 -- Строк:   29
-
+SELECT
+    name,
+    cost
+FROM
+    items
+WHERE
+    cost BETWEEN 2000
+    AND 3000
+    AND NOT is_recipe
+ORDER BY
+    cost desc,
+    name ASC
+LIMIT
+    29;
