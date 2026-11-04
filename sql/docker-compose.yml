@@ -1,0 +1,37 @@
+# Стенд домашней работы: один PostgreSQL 17 со схемой и данными,
+# накатанными при первом запуске тома.
+#
+# Порт наружу не публикуется: тесты ходят через `docker compose exec`.
+# Чтобы залить схему заново, нужно удалить том: `docker compose down -v`.
+
+services:
+  postgres:
+    image: postgres:17
+    container_name: dota_hw_postgres
+    environment:
+      POSTGRES_USER: student
+      POSTGRES_PASSWORD: student
+      POSTGRES_DB: shop
+      # Часовой пояс фиксирован: от него зависит приведение timestamptz
+      # к date, а значит и детерминированность данных.
+      TZ: UTC
+      PGTZ: UTC
+      # Контрольные суммы страниц: учебный стенд, скорость не важна.
+      POSTGRES_INITDB_ARGS: "--data-checksums --locale=C --encoding=UTF8"
+    volumes:
+      - ./schema/01_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./schema/02_seed.sql:/docker-entrypoint-initdb.d/02_seed.sql:ro
+      - pgdata:/var/lib/postgresql/data
+    # Проверка идёт по TCP, а не по unix-сокету: пока работают скрипты
+    # из /docker-entrypoint-initdb.d, сервер слушает только сокет,
+    # поэтому контейнер станет healthy лишь после заливки схемы.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U student -d shop -h 127.0.0.1 -p 5432"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 10s
+    stop_grace_period: 10s
+
+volumes:
+  pgdata:
