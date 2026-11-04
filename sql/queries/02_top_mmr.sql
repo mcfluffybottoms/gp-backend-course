@@ -15,5 +15,4 @@ WHERE
 ORDER BY
     mmr DESC,
     nickname ASC
-LIMIT
-    15;
+LIMIT 15;

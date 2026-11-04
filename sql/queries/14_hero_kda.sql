@@ -20,6 +20,4 @@ HAVING
     COUNT(*) >= 420
 ORDER BY
     avg_kills DESC,
-    hero ASC
-LIMIT
-    29;
+    hero ASC;

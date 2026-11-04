@@ -38,7 +38,7 @@ SELECT
 FROM heroes AS h
 JOIN ban_counts AS b
     ON h.hero_id = b.hero_id
-JOIN pick_counts AS pk
+LEFT JOIN pick_counts AS pk
     ON pk.patch_id = b.patch_id AND pk.hero_id = b.hero_id
 JOIN patches AS p
     ON p.patch_id = b.patch_id
@@ -46,5 +46,4 @@ WHERE b.bans > pk.picks
 ORDER BY
     diff DESC,
     hero ASC,
-    version ASC
-LIMIT 99;
+    version ASC;

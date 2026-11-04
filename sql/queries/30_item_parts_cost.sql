@@ -64,5 +64,4 @@ JOIN items AS i
     ON i.item_id = pt.root_id
 ORDER BY
     diff DESC,
-    name ASC
-LIMIT 77;
+    name ASC;

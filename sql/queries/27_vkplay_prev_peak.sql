@@ -38,5 +38,4 @@ JOIN streamers AS st
 WHERE sp.prev_peak IS NOT NULL
 ORDER BY
     st.followers DESC,
-    sp.started_at ASC
-LIMIT 592;
+    sp.started_at ASC;

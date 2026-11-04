@@ -7,7 +7,7 @@
 -- Строк:   56
 SELECT
     m.match_id,
-    CAST(m.started_at AS date) AS match_date,
+    (m.started_at::timestamptz AT TIME ZONE 'UTC')::date AS match_date,
     m.duration_sec,
     t.name AS tournament_name
 FROM
@@ -17,6 +17,4 @@ WHERE
     duration_sec >= 4700
 ORDER BY
     duration_sec DESC,
-    match_id ASC
-LIMIT
-    56;
+    match_id ASC;

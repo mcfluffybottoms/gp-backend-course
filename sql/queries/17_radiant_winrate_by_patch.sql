@@ -18,6 +18,4 @@ GROUP BY
     p.version
 ORDER BY
     radiant_winrate DESC,
-    version ASC
-LIMIT
-    12;
+    version ASC;

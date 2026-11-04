@@ -15,6 +15,4 @@ WHERE
     legs != 2
 ORDER BY
     legs DESC,
-    name ASC
-LIMIT
-    17;
+    name ASC;

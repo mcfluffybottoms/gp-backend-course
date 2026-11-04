@@ -25,6 +25,4 @@ WHERE
     )
 ORDER BY
     item_name ASC,
-    component_name ASC
-LIMIT
-    36;
+    component_name ASC;

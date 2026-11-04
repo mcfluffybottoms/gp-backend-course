@@ -46,7 +46,6 @@ JOIN heroes AS h
 CROSS JOIN avg_kda AS a
 WHERE ss.kda > 6 * a.avg_value
 ORDER BY
-    ss.kda DESC,
+    ROUND(ss.kda, 2) DESC,
     ss.match_id ASC,
-    ss.slot ASC
-LIMIT 60;
+    ss.slot ASC;

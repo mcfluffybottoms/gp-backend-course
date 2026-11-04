@@ -6,17 +6,29 @@
 -- Порядок: bans по убыванию, при равенстве hero по возрастанию
 -- Строк:   10
 
+WITH bans AS (
+    SELECT 
+        hero_id,
+        COUNT(DISTINCT match_bans.match_id) AS bans
+    FROM match_bans
+    GROUP BY hero_id
+),
+picks AS (
+    SELECT 
+        hero_id,
+        COUNT(DISTINCT match_players.match_id) AS picks
+    FROM match_players
+    GROUP BY hero_id
+)
 SELECT
     h.name AS hero,
-    COUNT(DISTINCT mb.match_id) AS bans,
-    COUNT(DISTINCT mp.match_id) AS picks,
-    ROUND(COUNT(DISTINCT mb.match_id)::numeric / COUNT(DISTINCT mp.match_id), 2) AS bans_per_pick
+    b.bans,
+    p.picks,
+    ROUND(b.bans::numeric / p.picks, 2) AS bans_per_pick
 FROM
     heroes AS h
-    JOIN match_bans AS mb ON mb.hero_id = h.hero_id
-    JOIN match_players AS mp ON mp.hero_id = h.hero_id
-GROUP BY
-    h.name
+    JOIN bans AS b ON b.hero_id = h.hero_id
+    JOIN picks AS p ON p.hero_id = h.hero_id
 ORDER BY
     bans DESC,
     hero ASC

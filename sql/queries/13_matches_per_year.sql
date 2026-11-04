@@ -17,6 +17,4 @@ FROM
 GROUP BY
     year
 ORDER BY
-    year ASC
-LIMIT
-    10;
+    year ASC;

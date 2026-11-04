@@ -10,7 +10,7 @@ SELECT
     p.name AS platform,
     t.name AS team,
     COUNT(sd.donation_id) AS donations,
-    COALESCE(SUM(sd.amount), 0) :: numeric(12, 2) AS total_amount
+    COALESCE(SUM(sd.amount), 0) :: numeric AS total_amount
 FROM
     streamers AS s
     JOIN platforms AS p ON s.platform_id = p.platform_id
@@ -25,6 +25,4 @@ GROUP BY
     s.nickname
 ORDER BY
     total_amount DESC,
-    streamer ASC
-LIMIT
-    40;
+    streamer ASC;

@@ -18,6 +18,4 @@ WHERE
     tm.left_at IS NULL
 ORDER BY
     tm.joined_at ASC,
-    p.nickname ASC
-LIMIT
-    86;
+    p.nickname ASC;

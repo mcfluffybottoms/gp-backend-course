@@ -6,36 +6,41 @@
 -- Порядок: started_at по возрастанию
 -- Строк:   2
 
-WITH prev AS (
+WITH history AS (
     SELECT
-        t.tournament_id,
-        COALESCE((
-            SELECT SUM(t2.prize_pool)
-            FROM tournaments AS t2
-            WHERE t2.started_at < t.started_at
+        tournament_id,
+        name,
+        started_at,
+        prize_pool,
+        COALESCE(SUM(prize_pool) OVER (
+            ORDER BY started_at, tournament_id
+            ROWS BETWEEN UNBOUNDED PRECEDING
+            AND 1 PRECEDING
         ), 0) AS prev_total,
-        (
-            SELECT COUNT(*)
-            FROM tournaments AS t2
-            WHERE t2.started_at < t.started_at
+        COUNT(prize_pool) OVER (
+            ORDER BY started_at, tournament_id
+            ROWS BETWEEN UNBOUNDED PRECEDING
+            AND 1 PRECEDING
         ) AS prev_count
-    FROM tournaments AS t
+    FROM tournaments
+),
+match_counts AS (
+    SELECT 
+        tournament_id,
+        COUNT(*) AS matches_played
+    FROM matches
+    GROUP BY tournament_id
 )
 SELECT
-    t.name AS tournament,
-    t.started_at,
-    t.prize_pool,
-    prev.prev_total,
-    prev.prev_count,
-    (
-        SELECT COUNT(*)
-        FROM matches AS m
-        WHERE m.tournament_id = t.tournament_id
-    ) AS matches_played
-FROM tournaments AS t
-JOIN prev
-    ON prev.tournament_id = t.tournament_id
-WHERE t.prize_pool > prev.prev_total
+    h.name AS tournament,
+    h.started_at,
+    h.prize_pool,
+    h.prev_total,
+    h.prev_count,
+    mc.matches_played
+FROM history AS h
+LEFT JOIN match_counts  AS mc
+    ON h.tournament_id = mc.tournament_id
+WHERE h.prize_pool > h.prev_total
 ORDER BY
-    t.started_at ASC
-LIMIT 2;
+    h.started_at ASC;

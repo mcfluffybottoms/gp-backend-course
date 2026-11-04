@@ -39,5 +39,4 @@ GROUP BY
     te.tag
 ORDER BY
     prize_total DESC,
-    team ASC
-LIMIT 22;
+    team ASC;

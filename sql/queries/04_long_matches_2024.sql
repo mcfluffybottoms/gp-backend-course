@@ -14,9 +14,7 @@ from
     matches
 WHERE
     duration_sec > 3600
-    AND started_at >= timestamptz '2024-01-01'
-    AND started_at < timestamptz '2025-01-01'
+    AND started_at >= timestamptz '2024-01-01 00:00:00+00'
+    AND started_at < timestamptz '2025-01-01  00:00:00+00'
 ORDER BY
-    started_at ASC
-LIMIT
-    78;
+    started_at ASC;

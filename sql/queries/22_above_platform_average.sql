@@ -9,7 +9,7 @@
 WITH avg_f_count AS (
     SELECT
         s.platform_id,
-        AVG(followers) AS platform_avg
+        ROUND(AVG(followers), 2) AS platform_avg
     FROM streamers AS s
     GROUP BY
         s.platform_id
@@ -33,5 +33,4 @@ WHERE
     s.followers > avg.platform_avg
 ORDER BY
     followers DESC,
-    streamer ASC
-LIMIT 16;
+    streamer ASC;

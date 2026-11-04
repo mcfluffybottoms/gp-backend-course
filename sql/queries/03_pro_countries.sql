@@ -11,6 +11,4 @@ FROM
 WHERE
     mmr >= 10000
 ORDER BY
-    country ASC
-LIMIT
-    15;
+    country ASC;

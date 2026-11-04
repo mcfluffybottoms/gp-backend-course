@@ -38,5 +38,4 @@ LEFT JOIN streamers AS s
     ON s.player_id = p.player_id
 ORDER BY
     teams_count DESC,
-    player ASC
-LIMIT 25;
+    player ASC;

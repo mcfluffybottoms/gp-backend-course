@@ -42,5 +42,4 @@ JOIN teams AS t
 WHERE s.player_id IS NOT NULL
 ORDER BY
     cr.country ASC,
-    cr.country_rank ASC
-LIMIT 16;
+    cr.country_rank ASC;

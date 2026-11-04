@@ -24,6 +24,4 @@ WHERE
     )
 ORDER BY
     name ASC,
-    role ASC
-LIMIT
-    47;
+    role ASC;

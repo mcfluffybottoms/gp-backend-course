@@ -20,6 +20,4 @@ GROUP BY
     t.tag
 ORDER BY
     players_now DESC,
-    t.name ASC
-LIMIT
-    24;
+    t.name ASC;

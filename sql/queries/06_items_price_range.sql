@@ -15,6 +15,4 @@ WHERE
     AND NOT is_recipe
 ORDER BY
     cost desc,
-    name ASC
-LIMIT
-    29;
+    name ASC;

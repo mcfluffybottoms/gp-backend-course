@@ -20,6 +20,4 @@ FROM
     JOIN teams AS t ON t.team_id = tm.team_id
 ORDER BY
     followers DESC,
-    streamer ASC
-LIMIT
-    16;
+    streamer ASC;

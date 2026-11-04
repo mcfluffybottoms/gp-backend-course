@@ -14,7 +14,7 @@ SELECT
     d.amount,
     SUM(d.amount) OVER (
         PARTITION BY s.stream_id
-        ORDER BY d.sent_at_sec
+        ORDER BY d.sent_at_sec, d.donation_id
         ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
     ) AS running_total
 FROM streams AS s
@@ -27,5 +27,5 @@ WHERE st.nickname = 'Вжлинк'
   AND s.started_at <  TIMESTAMPTZ '2022-01-01 00:00:00+00'
 ORDER BY
     s.stream_id ASC,
-    d.sent_at_sec ASC
-LIMIT 192;
+    d.sent_at_sec ASC,
+    d.donation_id ASC;
